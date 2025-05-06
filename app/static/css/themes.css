@@ -1,0 +1,23 @@
+:root {
+    /* Light theme variables */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8f9fa;
+    --text-primary: #212529;
+    --text-secondary: #6c757d;
+    --border-color: #dee2e6;
+    --card-bg: #ffffff;
+    --sidebar-bg: #f8f9fa;
+    --hover-bg: #e9ecef;
+}
+
+[data-theme="dark"] {
+    /* Dark theme variables */
+    --bg-primary: #1B263B;
+    --bg-secondary: #243447;
+    --text-primary: #BFC7D5;
+    --text-secondary: #8B949E;
+    --border-color: #2D333B;
+    --card-bg: #161B22;
+    --sidebar-bg: #161B22;
+    --hover-bg: #30363D;
+}

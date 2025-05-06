@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+
+{% block title %}{{ board.name }} - Todo List{% endblock %}
+
+{% block content %}
+<!-- Board Name -->
+<div class="board-header mb-4 d-flex justify-content-between align-items-center">
+    <h1 contenteditable="true" onblur="renameBoard({{ board.id }}, this.innerText)">{{ board.name }}</h1>
+    <div>
+        <button class="btn btn-primary btn-sm me-2" onclick="showShareModal()">
+            <i class="fas fa-share-alt"></i> Share
+        </button>
+        <button class="btn btn-danger btn-sm" onclick="deleteBoard({{ board.id }})">Delete Board</button>
+    </div>
+</div>
+
+<!-- Add List Button -->
+<div class="mb-4">
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newListModal">Add List</button>
+</div>
+
+<!-- Lists -->
+<div class="list-container">
+    {% for list in board.lists %}
+    <div class="list" data-list-id="{{ list.id }}">
+        <div class="list-header d-flex justify-content-between align-items-center mb-3">
+            <h5 contenteditable="true" onblur="renameList({{ list.id }}, this.innerText)">{{ list.name }}</h5>
+            <button class="btn btn-sm btn-danger" onclick="deleteList({{ list.id }})">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+
+        <!-- Add Card Button -->
+        <div class="mb-3">
+            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#newCardModal" onclick="setListId({{ list.id }})">Add Card</button>
+        </div>
+
+        <!-- Cards -->
+        <div class="cards-container">
+            {% for card in list.cards %}
+            <div class="card card-item mb-2" data-card-id="{{ card.id }}">
+                <div class="card-body p-2">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" 
+                                   {% if card.completed %}checked{% endif %}
+                                   onclick="event.stopPropagation(); toggleCard({{ card.id }})">
+                            <label class="form-check-label {% if card.completed %}text-decoration-line-through{% endif %}">
+                                {{ card.title }}
+                            </label>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-link text-primary" 
+                                    onclick="event.stopPropagation(); openCardDetails({{ card.id }})">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-link text-danger" 
+                                    onclick="event.stopPropagation(); deleteCard({{ card.id }})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- New List Modal -->
+<div class="modal fade" id="newListModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New List</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('main.new_list', board_id=board.id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="listName" class="form-label">List Name</label>
+                        <input type="text" class="form-control" id="listName" name="name" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Create List</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- New Card Modal -->
+<div class="modal fade" id="newCardModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Card</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="newCardForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="cardTitle" class="form-label">Title</label>
+                        <input type="text" class="form-control" id="cardTitle" name="title" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="cardDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="cardDescription" name="description" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="cardDueDate" class="form-label">Due Date</label>
+                        <input type="datetime-local" class="form-control" id="cardDueDate" name="due_date">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Create Card</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function setListId(listId) {
+    const form = document.getElementById('newCardForm');
+    form.action = `/list/${listId}/card/new`;
+}
+
+// ... existing setListId function ...
+
+let currentCardId = null;
+
+function openCardDetails(cardId) {
+    currentCardId = cardId;
+    fetch(`/card/${cardId}/details`)
+        .then(response => response.json())
+        .then(data => {
+            const title = document.getElementById('cardDetailTitle');
+            const description = document.getElementById('cardDetailDescription');
+            const deadline = document.getElementById('cardDeadline');
+            const editButtons = document.getElementById('editButtons');
+            const commentInput = document.getElementById('commentInput');
+            
+            title.value = data.title;
+            description.value = data.description || '';
+            deadline.value = data.due_date ? data.due_date.slice(0, 16) : ''; // Format: YYYY-MM-DDTHH:mm
+            
+            // Set readonly based on permissions
+            title.readOnly = !data.can_edit;
+            description.readOnly = !data.can_edit;
+            deadline.readOnly = !data.can_edit;
+            editButtons.style.display = data.can_edit ? 'block' : 'none';
+            commentInput.style.display = data.can_edit ? 'flex' : 'none';
+            
+            // Load comments
+            const commentsHtml = data.comments.map(comment => `
+                <div class="bg-[#243447] rounded p-2 mb-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-[#8B949E] fw-bold">${comment.user}</small>
+                        <small class="text-[#8B949E]">${comment.created_at}</small>
+                    </div>
+                    <div class="mt-2">${comment.text}</div>
+                </div>
+            `).join('');
+            document.getElementById('cardComments').innerHTML = commentsHtml;
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('cardDetailModal'));
+            modal.show();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to load card details');
+        });
+}
+
+function saveCardDetails() {
+    const title = document.getElementById('cardDetailTitle').value;
+    const description = document.getElementById('cardDetailDescription').value;
+    const due_date = document.getElementById('cardDeadline').value;
+    
+    fetch(`/card/${currentCardId}/update`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title, description, due_date })
+    }).then(response => response.json())
+      .then(data => {
+          if (data.success) {
+              window.location.reload();
+          }
+      });
+}
+
+function addComment() {
+    const text = document.getElementById('newComment').value;
+    if (!text) return;
+    
+    fetch(`/card/${currentCardId}/comment`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text })
+    }).then(response => response.json())
+      .then(comment => {
+          const commentHtml = `
+              <div class="bg-[#243447] rounded p-2 mb-2">
+                  <div class="d-flex justify-content-between align-items-center">
+                      <small class="text-[#8B949E] fw-bold">${comment.user}</small>
+                      <small class="text-[#8B949E]">${comment.created_at}</small>
+                  </div>
+                  <div class="mt-2">${comment.text}</div>
+              </div>
+          `;
+          document.getElementById('cardComments').insertAdjacentHTML('afterbegin', commentHtml);
+          document.getElementById('newComment').value = '';
+      });
+}
+</script>
+
+<!-- Card Modal -->
+<div class="modal fade" id="cardDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-[#1B263B] text-[#BFC7D5]">
+            <div class="modal-header border-[#2D333B]">
+                <input type="text" id="cardDetailTitle" 
+                       class="form-control bg-[#243447] border-[#2D333B] text-[#BFC7D5] font-semibold">
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-4">
+                    <label class="form-label font-semibold">Description</label>
+                    <textarea id="cardDetailDescription" 
+                            class="form-control bg-[#243447] border-[#2D333B] text-[#BFC7D5]" 
+                            rows="3"></textarea>
+                </div>
+
+                <!-- Add Deadline Field -->
+                <div class="mb-4">
+                    <label class="form-label font-semibold">Deadline</label>
+                    <input type="datetime-local" id="cardDeadline"
+                           class="form-control bg-[#243447] border-[#2D333B] text-[#BFC7D5]">
+                </div>
+                
+                <div class="mb-4">
+                    <label class="form-label font-semibold">Comments</label>
+                    <div id="cardComments" class="mb-3">
+                        <!-- Comments will be loaded here -->
+                    </div>
+                    <div id="commentInput" class="d-flex gap-2" style="display: none;">
+                        <input type="text" id="newComment" 
+                               class="form-control bg-[#243447] border-[#2D333B] text-[#BFC7D5]" 
+                               placeholder="Write a comment...">
+                        <button onclick="addComment()" class="btn btn-primary">Add</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-[#2D333B]">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <div id="editButtons" style="display: none;">
+                    <button type="button" class="btn btn-primary" onclick="saveCardDetails()">Save changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Share Board Modal -->
+<div class="modal fade" id="shareBoardModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-[#1B263B] text-[#BFC7D5]">
+            <div class="modal-header border-[#2D333B]">
+                <h5 class="modal-title">Share Board</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-4">
+                    <label class="form-label">Share with (email)</label>
+                    <div class="d-flex gap-2 mb-2">
+                        <input type="email" id="shareEmail" 
+                               class="form-control bg-[#243447] border-[#2D333B] text-[#BFC7D5]">
+                    </div>
+                    <div class="d-flex gap-2">
+                        <select id="sharePermission" 
+                                class="form-select bg-[#243447] border-[#2D333B] text-[#BFC7D5]">
+                            <option value="view">Can view</option>
+                            <option value="edit">Can edit</option>
+                            <option value="manage">Can manage</option>
+                        </select>
+                        <button onclick="shareBoard()" class="btn btn-primary">Share</button>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <h6 class="mb-3">Board Members</h6>
+                    <div id="boardMembers" class="list-group bg-[#243447]">
+                        <!-- Members will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
